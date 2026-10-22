@@ -1,0 +1,20 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github-token",
+      "description": "GitHub token for pkg-health-mcp (optional, raises rate limits)",
+      "password": true
+    }
+  ],
+  "servers": {
+    "pkg-health": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:orcsnren/pkg-health-mcp"],
+      "env": {
+        "GITHUB_TOKEN": "${input:github-token}"
+      }
+    }
+  }
+}

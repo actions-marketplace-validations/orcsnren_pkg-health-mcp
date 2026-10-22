@@ -1,0 +1,27 @@
+name: Bug report
+description: Something crashes, hangs or returns an error
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The command or tool call, and the manifest if relevant (trim it to the smallest version that still fails).
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client and version
+      placeholder: "e.g. Claude Desktop 1.x, Cursor 1.x, CLI"
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: "node --version"

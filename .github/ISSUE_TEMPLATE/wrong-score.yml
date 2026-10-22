@@ -1,0 +1,31 @@
+name: Wrong or surprising score
+description: A package got a grade that does not match reality
+labels: [scoring]
+body:
+  - type: input
+    id: package
+    attributes:
+      label: Package
+      placeholder: "e.g. moment (npm) or nose (pypi)"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste the result of `npx -y github:orcsnren/pkg-health-mcp check <name> --json` (add `--pypi` for Python)
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What score did you expect, and why?
+      description: Links to the repository, recent releases or maintainer announcements help a lot.
+    validations:
+      required: true
+  - type: dropdown
+    id: token
+    attributes:
+      label: Was GITHUB_TOKEN set?
+      options: ["Yes", "No", "Not sure"]

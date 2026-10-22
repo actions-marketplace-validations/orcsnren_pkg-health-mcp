@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # vitest 5 needs Node 22+; on Node 20 we only check that the server builds and runs.
+      - run: npm test
+        if: matrix.node != 20
+      - run: npm run build
+      - name: Smoke test against live registries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node dist/index.js check express left-pad
+          node dist/index.js check requests --pypi --json > /dev/null
