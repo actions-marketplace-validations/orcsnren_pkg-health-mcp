@@ -7,4 +7,4 @@
 - [ ] `npm run typecheck` and `npm test` pass
 - [ ] New API fields are covered by a parser test
 - [ ] Scoring changes are reflected in `docs/scoring.md`
-- [ ] `CHANGELOG.md` updated under "Unreleased"
+- [ ] User-facing changes are described in `CHANGELOG.md`

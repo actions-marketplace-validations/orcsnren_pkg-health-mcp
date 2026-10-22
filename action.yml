@@ -1,0 +1,58 @@
+name: pkg-health-mcp dependency health
+description: Score the maintenance health of every dependency in a manifest or lock file and fail the build below a threshold.
+author: orcsnren
+branding:
+  icon: activity
+  color: green
+
+inputs:
+  manifest:
+    description: >
+      Path to the file to scan: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml,
+      requirements.txt, pyproject.toml, poetry.lock or uv.lock.
+    default: package.json
+  fail-under:
+    description: Fail the step if any dependency scores below this value (0-100). Leave empty to only report.
+    default: ""
+  include-dev:
+    description: Also score dev dependencies.
+    default: "false"
+  max-packages:
+    description: Score at most this many packages (lock files can list hundreds). Leave empty for all.
+    default: ""
+  github-token:
+    description: Token for GitHub API calls. The default workflow token raises the limit to 1,000+ requests/hour.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Build pkg-health-mcp
+      shell: bash
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --no-audit --no-fund --loglevel=error
+
+    - name: Score dependencies
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        PKG_HEALTH_CACHE_DIR: ${{ runner.temp }}/pkg-health-cache
+        INPUT_MANIFEST: ${{ inputs.manifest }}
+        INPUT_FAIL_UNDER: ${{ inputs.fail-under }}
+        INPUT_INCLUDE_DEV: ${{ inputs.include-dev }}
+        INPUT_MAX: ${{ inputs.max-packages }}
+      run: |
+        args=(scan "$INPUT_MANIFEST" --markdown)
+        [ -n "$INPUT_FAIL_UNDER" ] && args+=(--fail-under "$INPUT_FAIL_UNDER")
+        [ "$INPUT_INCLUDE_DEV" = "true" ] && args+=(--dev)
+        [ -n "$INPUT_MAX" ] && args+=(--max "$INPUT_MAX")
+        set +e
+        node "$GITHUB_ACTION_PATH/dist/index.js" "${args[@]}" > "$RUNNER_TEMP/pkg-health.md"
+        status=$?
+        set -e
+        cat "$RUNNER_TEMP/pkg-health.md" >> "$GITHUB_STEP_SUMMARY"
+        cat "$RUNNER_TEMP/pkg-health.md"
+        exit $status

@@ -48,12 +48,25 @@ export function scoreMaintainers(f: PackageFacts): SubScore {
     return { ...base, score, detail: `${f.registryMaintainers} registry maintainer(s); no GitHub data` };
   }
   const score = step(active, [[0, 5], [1, 25], [2, 45], [4, 65], [9, 85]], 100);
-  return { ...base, score, detail: `${active} active committer(s) in the last 12 months` };
+  const count = f.github?.contributorsSampleCapped ? `${active}+` : String(active);
+  return { ...base, score, detail: `${count} active committer(s) in the last 12 months` };
 }
 
 export function scoreIssues(f: PackageFacts): SubScore {
   const base: SubScore = { key: "issues", label: "Issue responsiveness", weight: WEIGHTS.issues, score: null, detail: "" };
   const g = f.github;
+  const closeDetail =
+    g?.medianIssueCloseDays !== undefined ? `median ${g.medianIssueCloseDays}d to close` : undefined;
+  // Time to first maintainer response is the better signal; it needs GITHUB_TOKEN (GraphQL).
+  if (g?.medianFirstResponseDays !== undefined && g.responseIssuesSampled) {
+    const d = g.medianFirstResponseDays;
+    const score = step(d, [[1, 100], [3, 90], [7, 75], [30, 55], [90, 30]], 10);
+    const rate = g.responseRate !== undefined ? `, ${Math.round(g.responseRate * 100)}% answered` : "";
+    const detail =
+      `median ${d}d to first maintainer response${rate} (${g.responseIssuesSampled} issues)` +
+      (closeDetail ? `; ${closeDetail}` : "");
+    return { ...base, score, detail };
+  }
   if (!g || g.closedIssuesSampled === undefined) return { ...base, detail: "No issue data" };
   if (g.closedIssuesSampled === 0) {
     if ((g.openIssues ?? 0) === 0) return { ...base, detail: "No issues opened or closed recently" };
@@ -67,6 +80,7 @@ export function scoreIssues(f: PackageFacts): SubScore {
 export function scoreDownloads(f: PackageFacts): SubScore {
   const base: SubScore = { key: "downloads", label: "Download trend", weight: WEIGHTS.downloads, score: null, detail: "" };
   const d = f.downloads;
+  if (!d && f.ecosystem === "github") return { ...base, detail: "Not available for GitHub repositories" };
   if (!d) return { ...base, detail: "No download statistics" };
   if (d.previous === 0 && d.recent === 0) return { ...base, score: 10, detail: "No downloads in 6 months" };
   if (d.previous === 0) return { ...base, score: 90, detail: `${fmt(d.recent)} downloads in 90d (new package)` };
@@ -138,14 +152,34 @@ export function gradeFor(score: number | null): HealthReport["grade"] {
 
 export function buildReport(f: PackageFacts, now = Date.now()): HealthReport {
   if (!f.found) {
+    const repo = f.ecosystem === "github";
+    // A rate limit or network failure is not evidence that the repository is missing.
+    const unreachable = repo && f.warnings.some((w) => w.startsWith("GitHub"));
+    if (unreachable) {
+      return {
+        package: f.name,
+        ecosystem: f.ecosystem,
+        score: null,
+        grade: "?",
+        confidence: 0,
+        summary: "Could not be checked: GitHub did not answer",
+        risks: [],
+        subscores: [],
+        warnings: f.warnings,
+      };
+    }
     return {
       package: f.name,
       ecosystem: f.ecosystem,
       score: null,
       grade: "?",
       confidence: 0,
-      summary: `Package not found on ${f.ecosystem}`,
-      risks: ["Package does not exist in the registry (typo or possible typosquatting target)"],
+      summary: repo ? "Repository not found on GitHub" : `Package not found on ${f.ecosystem}`,
+      risks: [
+        repo
+          ? "Repository does not exist, is private, or could not be read"
+          : "Package does not exist in the registry (typo or possible typosquatting target)",
+      ],
       subscores: [],
       warnings: f.warnings,
     };
@@ -179,6 +213,17 @@ export function buildReport(f: PackageFacts, now = Date.now()): HealthReport {
   if (f.github?.activeContributors12m === 0) risks.push("No commits in the last 12 months");
   else if (f.github?.activeContributors12m === 1) risks.push("Single active maintainer (bus factor 1)");
   if (!f.repoUrl) risks.push("No linked GitHub repository; source activity could not be verified");
+  const g = f.github;
+  // Only a risk when issues also wait long: busy projects often triage through labels or community
+  // members, which GitHub does not attribute to a maintainer role.
+  if (
+    g?.responseRate !== undefined &&
+    (g.responseIssuesSampled ?? 0) >= 5 &&
+    g.responseRate < 0.5 &&
+    (g.medianFirstResponseDays ?? 0) > 30
+  ) {
+    risks.push(`${Math.round((1 - g.responseRate) * 100)}% of recent issues got no maintainer response`);
+  }
   const lic = subscores.find((s) => s.key === "license")!;
   if (lic.score !== null && lic.score <= 35) risks.push(`License may restrict commercial use: ${lic.detail}`);
   const dl = f.downloads;

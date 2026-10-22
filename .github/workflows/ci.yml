@@ -29,3 +29,14 @@ jobs:
         run: |
           node dist/index.js check express left-pad
           node dist/index.js check requests --pypi --json > /dev/null
+          node dist/index.js check expressjs/express --fail-under 50
+          node dist/index.js scan package-lock.json --max 5 --markdown >> "$GITHUB_STEP_SUMMARY"
+
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          manifest: package.json
+          fail-under: 30

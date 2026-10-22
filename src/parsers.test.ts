@@ -26,7 +26,7 @@ describe("parseGitHubRepo", () => {
 });
 
 describe("manifest parsing", () => {
-  it("parses package.json and skips non-registry specs", () => {
+  it("parses package.json, keeps GitHub specs and skips local ones", () => {
     const deps = parseManifest(
       JSON.stringify({
         dependencies: { express: "^4", local: "file:../x", gh: "github:a/b", alias: "npm:lodash@4" },
@@ -34,7 +34,11 @@ describe("manifest parsing", () => {
       }),
       "package.json",
     );
-    expect(deps.map((d) => d.name)).toEqual(["express", "lodash"]);
+    expect(deps.map((d) => [d.name, d.ecosystem])).toEqual([
+      ["express", "npm"],
+      ["a/b", "github"],
+      ["lodash", "npm"],
+    ]);
   });
 
   it("includes dev dependencies on request", () => {
@@ -57,7 +61,8 @@ describe("manifest parsing", () => {
       ].join("\n"),
       "requirements.txt",
     );
-    expect(deps.map((d) => d.name)).toEqual(["requests", "Django", "uvicorn", "numpy"]);
+    expect(deps.map((d) => d.name)).toEqual(["requests", "Django", "uvicorn", "a/b", "numpy"]);
+    expect(deps.find((d) => d.name === "a/b")?.ecosystem).toBe("github");
   });
 
   it("parses PEP 621 pyproject.toml including extras in specs", () => {

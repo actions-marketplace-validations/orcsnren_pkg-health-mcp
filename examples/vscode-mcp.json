@@ -11,7 +11,7 @@
     "pkg-health": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "github:orcsnren/pkg-health-mcp"],
+      "args": ["-y", "pkg-health-mcp"],
       "env": {
         "GITHUB_TOKEN": "${input:github-token}"
       }

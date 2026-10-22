@@ -2,7 +2,7 @@
   "mcpServers": {
     "pkg-health": {
       "command": "npx",
-      "args": ["-y", "github:orcsnren/pkg-health-mcp"],
+      "args": ["-y", "pkg-health-mcp"],
       "env": {
         "GITHUB_TOKEN": "github_pat_your_token_here"
       }

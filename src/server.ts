@@ -1,15 +1,22 @@
+import { readFile, stat } from "node:fs/promises";
+import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { analyzeMany, analyzePackage } from "./analyze.js";
-import { parseManifest } from "./manifest.js";
+import { detectManifest, isLockFile, isManifestFilename, MANIFEST_FILES, parseManifest } from "./manifest.js";
 import type { HealthReport } from "./types.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
+
+const MAX_MANIFEST_BYTES = 20 * 1024 * 1024;
 
 const ecosystem = z
-  .enum(["npm", "pypi"])
+  .enum(["npm", "pypi", "github"])
   .default("npm")
-  .describe("Package registry: 'npm' (JavaScript/TypeScript) or 'pypi' (Python)");
+  .describe(
+    "Where to look: 'npm' (JavaScript/TypeScript), 'pypi' (Python) or 'github' (any GitHub repository, " +
+      "name given as 'owner/repo'). A GitHub URL or 'owner/repo' is detected automatically.",
+  );
 
 const readOnly = { readOnlyHint: true, openWorldHint: true, idempotentHint: true } as const;
 
@@ -31,11 +38,18 @@ export function createServer(): McpServer {
     {
       title: "Check package health",
       description:
-        "Score how well an npm or PyPI package is maintained (0-100, graded A-F). Looks at release and commit recency, " +
-        "number of active committers, issue close time, download trend, OpenSSF Scorecard and license. " +
-        "Use before adding a new dependency or when asked whether a library is abandoned.",
+        "Score how well an npm or PyPI package, or any GitHub repository, is maintained (0-100, graded A-F). " +
+        "Looks at release and commit recency, number of active committers, time to first maintainer response, " +
+        "issue close time, download trend, OpenSSF Scorecard and license. " +
+        "Use before adding a new dependency, when asked whether a library or project is abandoned, " +
+        "or to vet a GitHub project that is not published to a registry.",
       inputSchema: {
-        name: z.string().min(1).describe("Package name, e.g. 'express', '@types/node', 'requests'"),
+        name: z
+          .string()
+          .min(1)
+          .describe(
+            "Package name ('express', '@types/node', 'requests') or GitHub repository ('owner/repo' or a github.com URL)",
+          ),
         ecosystem,
       },
       annotations: readOnly,
@@ -51,25 +65,51 @@ export function createServer(): McpServer {
     {
       title: "Scan dependency manifest",
       description:
-        "Score every dependency in a package.json, requirements.txt or pyproject.toml and list the riskiest first. " +
-        "Pass the file's text content. Use to audit a project's dependencies for abandoned or risky packages.",
+        "Score every dependency in a manifest or lock file and list the riskiest first. Supports package.json, " +
+        "requirements.txt, pyproject.toml, and the lock files package-lock.json, yarn.lock, pnpm-lock.yaml, " +
+        "poetry.lock and uv.lock (which include transitive dependencies). GitHub-hosted dependencies are scored " +
+        "as repositories. Prefer `path` for local files, especially large lock files; otherwise pass `content`. " +
+        "Use to audit a project's dependencies for abandoned or risky packages.",
       inputSchema: {
-        content: z.string().min(1).describe("Full text of the manifest file"),
+        path: z
+          .string()
+          .optional()
+          .describe(`Path to a local manifest or lock file, relative to the server's working directory. One of: ${MANIFEST_FILES.join(", ")}, requirements*.txt`),
+        content: z.string().optional().describe("Full text of the manifest file, if not passing `path`"),
         filename: z
           .string()
           .optional()
-          .describe("File name, used to detect the format (package.json, requirements.txt, pyproject.toml)"),
+          .describe("File name for `content`, used to detect the format (e.g. package.json, yarn.lock)"),
         include_dev: z.boolean().default(false).describe("Also score devDependencies / optional dependencies"),
-        max_packages: z.number().int().min(1).max(200).default(50).describe("Upper limit on packages scored"),
+        max_packages: z
+          .number()
+          .int()
+          .min(1)
+          .max(1000)
+          .default(50)
+          .describe("Upper limit on packages scored; lock files often list several hundred"),
       },
       annotations: readOnly,
     },
-    async ({ content, filename, include_dev, max_packages }) => {
+    async ({ path, content, filename, include_dev, max_packages }) => {
       let deps;
+      let lock = false;
       try {
+        if (path) {
+          if (!isManifestFilename(path)) {
+            return fail(`Not a supported manifest file name: ${path}. Expected one of ${MANIFEST_FILES.join(", ")}.`);
+          }
+          const file = resolve(path);
+          if ((await stat(file)).size > MAX_MANIFEST_BYTES) return fail(`${path} is larger than 20 MB.`);
+          content = await readFile(file, "utf8");
+          filename = path;
+        }
+        if (!content) return fail("Pass either `path` or `content`.");
+        lock = isLockFile(detectManifest(content, filename));
         deps = parseManifest(content, filename, include_dev);
       } catch (err) {
-        return fail((err as Error).message);
+        const e = err as NodeJS.ErrnoException;
+        return fail(e.code === "ENOENT" ? `File not found: ${path}` : e.message);
       }
       if (!deps.length) return fail("No registry dependencies found in the manifest.");
       const truncated = deps.length > max_packages;
@@ -78,12 +118,14 @@ export function createServer(): McpServer {
       const counts = countGrades(reports);
       const risky = ranked.filter((r) => r.grade === "D" || r.grade === "F" || r.grade === "?");
       const header =
-        `Scanned ${reports.length} package(s)${truncated ? ` (first ${max_packages} of ${deps.length})` : ""}. ` +
+        `Scanned ${reports.length} package(s)${truncated ? ` (first ${max_packages} of ${deps.length})` : ""}` +
+        `${lock ? ", including transitive dependencies from the lock file" : ""}. ` +
         `Grades: ${Object.entries(counts).map(([g, n]) => `${g}=${n}`).join(", ")}. ` +
         (risky.length
           ? `Needs attention: ${risky.slice(0, 10).map((r) => `${r.package} (${r.score ?? "?"})`).join(", ")}.`
           : "No packages graded D or F.");
       return respond(header, {
+        lock_file: lock,
         scanned: reports.length,
         total_dependencies: deps.length,
         grades: counts,
@@ -97,10 +139,14 @@ export function createServer(): McpServer {
     {
       title: "Compare alternative packages",
       description:
-        "Compare 2-5 alternative packages from the same registry (e.g. 'moment' vs 'dayjs' vs 'date-fns') and rank " +
-        "them by maintenance health. Use when choosing between libraries.",
+        "Compare 2-5 alternative packages from the same registry (e.g. 'moment' vs 'dayjs' vs 'date-fns'), or GitHub " +
+        "repositories, and rank them by maintenance health. Use when choosing between libraries.",
       inputSchema: {
-        packages: z.array(z.string().min(1)).min(2).max(5).describe("Package names to compare"),
+        packages: z
+          .array(z.string().min(1))
+          .min(2)
+          .max(5)
+          .describe("Package names or GitHub repositories ('owner/repo') to compare"),
         ecosystem,
       },
       annotations: readOnly,

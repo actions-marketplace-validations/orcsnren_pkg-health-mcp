@@ -1,7 +1,8 @@
 {
   "name": "pkg-health-mcp",
-  "version": "0.1.0",
-  "description": "MCP server that scores the maintenance health of npm and PyPI packages, so AI agents (and humans) can spot abandoned dependencies.",
+  "version": "0.2.0",
+  "mcpName": "io.github.orcsnren/pkg-health-mcp",
+  "description": "Is this dependency still maintained? MCP server, CLI and GitHub Action that score npm packages, PyPI packages and GitHub repositories 0-100 for maintenance health, with an A-F grade and a list of risks.",
   "type": "module",
   "bin": {
     "pkg-health-mcp": "dist/index.js"
@@ -23,14 +24,29 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
+    "claude",
+    "cursor",
+    "ai-agent",
     "dependencies",
+    "dependency-health",
+    "dependency-audit",
     "supply-chain",
+    "supply-chain-security",
     "npm",
     "pypi",
+    "github",
+    "github-action",
+    "lockfile",
     "maintenance",
-    "health",
-    "openssf"
+    "abandoned",
+    "deprecated",
+    "bus-factor",
+    "openssf",
+    "scorecard",
+    "ci",
+    "cli"
   ],
   "author": "orcsnren",
   "license": "Apache-2.0",

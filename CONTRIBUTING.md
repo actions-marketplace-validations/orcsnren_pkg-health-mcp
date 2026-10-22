@@ -5,8 +5,9 @@ Thanks for your interest in improving `pkg-health-mcp`. Bug reports, scoring fee
 ## Ways to help
 
 - **Report a wrong score.** If a package you know well gets a grade that feels wrong, open an issue with the package name, the output (`pkg-health-mcp check <name> --json`) and why you disagree. These reports are the main way the thresholds get tuned.
-- **Add an ecosystem.** Maven Central, Go modules, crates.io and RubyGems are all on the roadmap. See [docs/architecture.md](docs/architecture.md#adding-an-ecosystem) for the steps.
-- **Improve manifest parsing.** Lock files, `setup.cfg`, `Pipfile` and workspace setups are not supported yet.
+- **Add an ecosystem.** Maven Central, Go modules, crates.io and RubyGems would all be welcome. See [docs/architecture.md](docs/architecture.md#adding-an-ecosystem) for the steps.
+- **Add a repository host.** GitLab and Codeberg support would let packages hosted there get full scores.
+- **Add a manifest format.** `Pipfile.lock`, `setup.cfg`, `bun.lock` and workspace layouts are good candidates; see the existing parsers in `src/manifest.ts`.
 - **Docs and examples.** Configuration snippets for other MCP clients are always useful.
 
 ## Development setup
@@ -62,7 +63,7 @@ npx @modelcontextprotocol/inspector node dist/index.js
 1. Fork the repository and create a branch from `main`.
 2. Make your change with tests.
 3. Run `npm run typecheck && npm test`.
-4. Add a line to [CHANGELOG.md](CHANGELOG.md) under "Unreleased".
+4. Describe user-facing changes in [CHANGELOG.md](CHANGELOG.md), under an `## [Unreleased]` heading at the top.
 5. Open the pull request and describe what changed and why.
 
 By contributing, you agree that your contributions are licensed under the [Apache License 2.0](LICENSE).

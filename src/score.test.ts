@@ -86,6 +86,39 @@ describe("buildReport", () => {
     expect(buildReport(f, NOW).risks).toContain("Single active maintainer (bus factor 1)");
   });
 
+  it("prefers time to first maintainer response over close time", () => {
+    const f = facts();
+    Object.assign(f.github!, { medianFirstResponseDays: 0.5, responseIssuesSampled: 30, responseRate: 0.9 });
+    const issues = buildReport(f, NOW).subscores.find((s) => s.key === "issues")!;
+    expect(issues.score).toBe(100);
+    expect(issues.detail).toMatch(/first maintainer response, 90% answered \(30 issues\)/);
+
+    Object.assign(f.github!, { medianFirstResponseDays: 45, responseRate: 0.3 });
+    const r = buildReport(f, NOW);
+    expect(r.subscores.find((s) => s.key === "issues")!.score).toBe(30);
+    expect(r.risks).toContain("70% of recent issues got no maintainer response");
+  });
+
+  it("marks a capped contributor sample with a plus", () => {
+    const f = facts();
+    f.github!.contributorsSampleCapped = true;
+    expect(buildReport(f, NOW).subscores.find((s) => s.key === "maintainers")!.detail).toMatch(/12\+/);
+  });
+
+  it("scores a GitHub repository without download data", () => {
+    const r = buildReport(facts({ name: "acme/demo", ecosystem: "github", downloads: undefined }), NOW);
+    expect(r.grade).toBe("A");
+    expect(r.subscores.find((s) => s.key === "downloads")!.detail).toBe("Not available for GitHub repositories");
+    const missing = buildReport({ name: "acme/nope", ecosystem: "github", found: false, warnings: [] }, NOW);
+    expect(missing.summary).toBe("Repository not found on GitHub");
+    const limited = buildReport(
+      { name: "acme/demo", ecosystem: "github", found: false, warnings: ["GitHub API rate limit reached"] },
+      NOW,
+    );
+    expect(limited.summary).toMatch(/Could not be checked/);
+    expect(limited.risks).toEqual([]);
+  });
+
   it("handles unknown packages", () => {
     const r = buildReport({ name: "nope", ecosystem: "pypi", found: false, warnings: [] }, NOW);
     expect(r.grade).toBe("?");

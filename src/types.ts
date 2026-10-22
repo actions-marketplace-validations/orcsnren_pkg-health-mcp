@@ -1,4 +1,4 @@
-export type Ecosystem = "npm" | "pypi";
+export type Ecosystem = "npm" | "pypi" | "github";
 
 /** Raw facts gathered from registries and GitHub. Any field may be missing. */
 export interface PackageFacts {
@@ -25,11 +25,25 @@ export interface GitHubFacts {
   stars?: number;
   openIssues?: number;
   lastCommitAt?: string;
-  /** Unique commit authors in the last 12 months (sampled from up to 100 commits). */
+  /** SPDX id from GitHub's license detection, if any. */
+  license?: string;
+  /** Latest GitHub release (only fetched when the repository itself is the target). */
+  latestRelease?: { tag: string; publishedAt: string };
+  /** Unique human commit authors in the last 12 months (sampled from up to 500 commits). */
   activeContributors12m?: number;
+  /** True when the commit sample hit its page limit, so the author count is a lower bound. */
+  contributorsSampleCapped?: boolean;
   /** Median days from open to close, for issues closed in the last 12 months. */
   medianIssueCloseDays?: number;
   closedIssuesSampled?: number;
+  /**
+   * Median days until a maintainer first replied to (or closed) an issue, over recent issues.
+   * Issues still waiting count with their current age. Needs GITHUB_TOKEN (GraphQL).
+   */
+  medianFirstResponseDays?: number;
+  responseIssuesSampled?: number;
+  /** Share of sampled issues that got a maintainer reply or were closed (0-1). */
+  responseRate?: number;
 }
 
 export interface DownloadFacts {
