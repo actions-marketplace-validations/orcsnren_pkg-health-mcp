@@ -7,6 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](https://modelcontextprotocol.io)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933)](package.json)
+[![Glama score](https://glama.ai/mcp/servers/orcsnren/pkg-health-mcp/badges/score.svg)](https://glama.ai/mcp/servers/orcsnren/pkg-health-mcp)
 
 `pkg-health-mcp` scores **npm packages, PyPI packages and GitHub repositories** from 0 to 100 for maintenance health. It combines release and commit activity, active maintainers, issue response times, download trends, [OpenSSF Scorecard](https://securityscorecards.dev) and license into **an A–F grade and a plain-language list of risks**.
 
